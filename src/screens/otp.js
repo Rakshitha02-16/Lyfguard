@@ -2,24 +2,57 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { LOGIN_API } from './api';
 import { useLocation, useNavigate } from 'react-router-dom';
+import Modal from './modal'
 
 const OTPScreen = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [otp, setOTP] = useState(['', '', '', '']);
+  const [modalVisible, setModalVisible] = useState(false);
   const otpInputRef = useRef([null, null, null, null]);
+  const [otpPopupVisible, setOtpPopupVisible] = useState(false); // State to manage OTP popup visibility
+  const [fromEmergency, setFromEmergency] = useState(false); // State to handle emergency flow
+  const [fromPrivate, setFromPrivate] = useState(false);
 
   useEffect(() => {
-    if (location.state && location.state.phone) {
-      setPhone(location.state.phone);
+    if (location.state) {
+      setPhone(location.state.phone || '');
+      setFromEmergency(location.state.fromEmergency || false);
+      setFromPrivate(location.state.setFromPrivate || false);
+      
     }
+    if (location.state?.fromEmergency) {
+      setModalVisible(true);
+      setFromEmergency(true); //
+    } 
+    else if (location.state?.FromPrivate){
+      
+      setFromPrivate(true); //
+    }
+    console.log('Phone:', location.state?.phone);
+    console.log('fromEmergency:', location.state?.fromEmergency);
+   
   }, [location.state]);
 
   const handleVerifyOTP = async () => {
     if (!phone) {
       console.error('Phone number is missing.');
       alert('Phone number is missing. Please try again.');
+      return;
+    }
+    if (otp.some(val => val === '')) {
+      alert('Please enter all OTP digits.');
+      return;
+    }
+
+    if (fromEmergency) {
+      setOtpPopupVisible(true); // Show the OTP popup if fromEmergency is true
+      return;
+    }else if (fromPrivate) {
+      navigate('/private');
+    } else {
+      navigate('/services');
       return;
     }
 
@@ -40,7 +73,13 @@ const OTPScreen = () => {
       localStorage.setItem('token', token);
 
       setOTP(['', '', '', '']);
-      navigate('/services'); // Navigate to the Services page
+      if ( fromEmergency) {
+        navigate('/emergency', { state: { showPopup: true } });// Ensure the route '/private' exists and is correct
+      } else if (fromPrivate) {
+      navigate('/private');
+    } else {
+      navigate('/services');
+    }
     } catch (error) {
       if (error.response) {
         console.error('Error response data:', error.response.data);
@@ -64,13 +103,23 @@ const OTPScreen = () => {
       newOTP[index] = value;
       setOTP(newOTP);
 
-      if (index < 3 && value !== '') {
+      if (value !== '' && index < 3) {
         otpInputRef.current[index + 1]?.focus();
-      } else if (index > 0 && value === '') {
+      } else if (value === '' && index > 0) {
         otpInputRef.current[index - 1]?.focus();
       }
+  
+     
     }
   };
+    
+  const handleOtpPopupConfirm = () => {
+    setOtpPopupVisible(false);
+    handleVerifyOTP(); // Proceed with OTP verification
+  };
+  
+  
+  
 
   return (
     <div style={styles.container}>
@@ -107,6 +156,14 @@ const OTPScreen = () => {
          
         </div>
       </div>
+      {otpPopupVisible && (
+        <Modal 
+          modalVisible={otpPopupVisible} 
+          setModalVisible={setOtpPopupVisible}
+          onConfirm={handleOtpPopupConfirm}
+        />
+      )}
+       
     </div>
   );
 };
